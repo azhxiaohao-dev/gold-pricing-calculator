@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>黄金定价计算器 - 保8%毛利 + 利润明细</title>
+  <style>
+    body {
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f9f7f0;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #d4af37;
+    }
+    .section {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: bold;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 4px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    .result {
+      background: #eef7ff;
+      padding: 15px;
+      border-left: 4px solid #007acc;
+      margin-top: 15px;
+      font-size: 1.1em;
+    }
+    .profit-detail {
+      background: #f0fff4;
+      padding: 12px;
+      border-left: 4px solid #2e8b57;
+      margin-top: 10px;
+      font-size: 0.95em;
+    }
+    .note {
+      font-size: 0.9em;
+      color: #666;
+      margin-top: 10px;
+    }
+    button {
+      background: #d4af37;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    button:hover {
+      background: #c19e2f;
+    }
+    .highlight {
+      color: #d4af37;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>✨ 黄金定价计算器</h1>
+  <p style="text-align:center; color:#666">保 ≥8% 毛利率 | 自动保存历史记录 | 显示利润明细</p>
+
+  <div class="section">
+    <label for="marketPrice">大盘金价（元/克）</label>
+    <input type="number" id="marketPrice" step="0.01" placeholder="例如：17.5">
+
+    <label for="markup">你的加价（元/克）</label>
+    <input type="number" id="markup" step="0.01" placeholder="例如：1.2">
+
+    <label for="weight">克重（克）</label>
+    <select id="weight">
+      <option value="100">100g</option>
+      <option value="500">500g</option>
+      <option value="1000">1000g</option>
+      <option value="custom">自定义</option>
+    </select>
+    <input type="number" id="customWeight" step="1" placeholder="输入克重" style="display:none; margin-top:5px;">
+
+    <label for="processingFee">加工费（元）</label>
+    <input type="number" id="processingFee" step="0.01" placeholder="例如：150">
+
+    <label for="shipping">运费（元）</label>
+    <input type="number" id="shipping" step="0.01" value="24">
+
+    <label>平台费率（自动合计）</label>
+    <div>
+      技术服务费：<input type="number" id="techFeeRate" step="0.001" value="0.006" style="width:45%">  
+      佣金：<input type="number" id="commissionRate" step="0.001" value="0.008" style="width:45%">
+    </div>
+
+    <label for="targetMargin">目标毛利率（小数，如0.08=8%）</label>
+    <input type="number" id="targetMargin" step="0.01" value="0.08">
+
+    <button onclick="calculate()">立即计算</button>
+  </div>
+
+  <div class="section">
+    <h3>💰 定价建议 & 利润明细</h3>
+    <div class="result" id="result">请填写参数后点击“立即计算”</div>
+    <div class="profit-detail" id="profitDetail" style="display:none;"></div>
+    <div class="note">
+      公式：<br>
+      最低售价 = [(大盘价 + 加价) × 克重 + 加工费 + 运费] ÷ [1 - (技术服务费率 + 佣金费率) - 目标毛利率]
+    </div>
+  </div>
+
+  <script>
+    // 页面加载时恢复历史数据
+    document.addEventListener('DOMContentLoaded', () => {
+      const fields = ['marketPrice', 'markup', 'processingFee', 'shipping', 
+                      'techFeeRate', 'commissionRate', 'targetMargin', 'customWeight'];
+      fields.forEach(id => {
+        const saved = localStorage.getItem(id);
+        if (saved !== null) {
+          document.getElementById(id).value = saved;
+        }
+      });
+      const savedWeight = localStorage.getItem('weight');
+      if (savedWeight) {
+        const select = document.getElementById('weight');
+        if (['100','500','1000'].includes(savedWeight)) {
+          select.value = savedWeight;
+        } else {
+          select.value = 'custom';
+          document.getElementById('customWeight').style.display = 'block';
+          document.getElementById('customWeight').value = savedWeight;
+        }
+      }
+      document.getElementById('weight').addEventListener('change', function() {
+        const customInput = document.getElementById('customWeight');
+        customInput.style.display = this.value === 'custom' ? 'block' : 'none';
+      });
+    });
+
+    function saveInputs() {
+      const fields = ['marketPrice', 'markup', 'processingFee', 'shipping', 
+                      'techFeeRate', 'commissionRate', 'targetMargin'];
+      fields.forEach(id => {
+        const val = document.getElementById(id).value;
+        if (val !== '') localStorage.setItem(id, val);
+      });
+      let weightVal = document.getElementById('weight').value;
+      if (weightVal === 'custom') {
+        weightVal = document.getElementById('customWeight').value || '100';
+      }
+      localStorage.setItem('weight', weightVal);
+      if (document.getElementById('weight').value === 'custom') {
+        localStorage.setItem('customWeight', document.getElementById('customWeight').value);
+      }
+    }
+
+    function calculate() {
+      saveInputs();
+
+      const P = parseFloat(document.getElementById('marketPrice').value);
+      const dp = parseFloat(document.getElementById('markup').value);
+      let w = document.getElementById('weight').value;
+      if (w === 'custom') w = parseFloat(document.getElementById('customWeight').value);
+      else w = parseFloat(w);
+      const F_proc = parseFloat(document.getElementById('processingFee').value);
+      const F_ship = parseFloat(document.getElementById('shipping').value);
+      const r1 = parseFloat(document.getElementById('techFeeRate').value);
+      const r2 = parseFloat(document.getElementById('commissionRate').value);
+      const m = parseFloat(document.getElementById('targetMargin').value);
+
+      if ([P, dp, w, F_proc, F_ship, r1, r2, m].some(isNaN)) {
+        document.getElementById('result').innerHTML = '❌ 请填写所有数值字段！';
+        document.getElementById('profitDetail').style.display = 'none';
+        return;
+      }
+
+      const totalCostBeforeFees = (P + dp) * w + F_proc + F_ship;
+      const denominator = 1 - r1 - r2 - m;
+
+      if (denominator <= 0) {
+        document.getElementById('result').innerHTML = '⚠️ 分母 ≤ 0！请检查费率或毛利率是否过高。';
+        document.getElementById('profitDetail').style.display = 'none';
+        return;
+      }
+
+      const S = totalCostBeforeFees / denominator;
+      const platformFee = S * (r1 + r2);
+      const totalCost = totalCostBeforeFees + platformFee;
+      const grossProfit = S - totalCost;
+      const actualMargin = (grossProfit / S) * 100;
+
+      // 年化收益估算（假设15天一单）
+      const turnoverDays = 15;
+      const annualTurnover = 365 / turnoverDays;
+      const annualReturn = Math.pow(1 + actualMargin/100, annualTurnover) - 1;
+
+      document.getElementById('result').innerHTML = `
+        <strong>建议最低售价：</strong> <span class="highlight">¥${S.toFixed(2)}</span><br>
+        <strong>对应单价：</strong> ¥${(S / w).toFixed(3)}/克
+      `;
+
+      document.getElementById('profitDetail').innerHTML = `
+        <strong>成本明细：</strong><br>
+        • 银料成本：¥${((P + dp) * w).toFixed(2)}<br>
+        • 加工费：¥${F_proc.toFixed(2)}<br>
+        • 运费：¥${F_ship.toFixed(2)}<br>
+        • 平台扣点（${((r1+r2)*100).toFixed(1)}%）：¥${platformFee.toFixed(2)}<br>
+        <strong>总成本：</strong> ¥${totalCost.toFixed(2)}<br><br>
+        
+        <strong>利润结果：</strong><br>
+        • 毛利：¥${grossProfit.toFixed(2)}<br>
+        • 毛利率：${actualMargin.toFixed(2)}%<br><br>
+        
+        <strong>年化收益潜力（15天周转）：</strong><br>
+        • 年周转次数：${annualTurnover.toFixed(1)} 次<br>
+        • 年化收益率（复利）：<span class="highlight">${(annualReturn * 100).toFixed(1)}%</span>
+      `;
+      document.getElementById('profitDetail').style.display = 'block';
+    }
+  </script>
+</body>
+</html>
